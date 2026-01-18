@@ -8,11 +8,11 @@ URL = "https://www.finn.no/car/used/search.html"
 
 PARAMS = {
     "make": "0.807",  # Tesla
-    "sort": "PUBLISHED_DESC"
+    "sort": "PUBLISHED_DESC",
 }
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0",
 }
 
 
@@ -60,24 +60,23 @@ def hent_tesla_dataframe(max_pages: int = 10, sleep_sec: int = 1) -> pd.DataFram
     for page in range(1, max_pages + 1):
         PARAMS["page"] = page
 
-        r = requests.get(URL, params=PARAMS, headers=HEADERS, timeout=20)
+        r = requests.get(URL, params=PARAMS, headers=HEADERS, timeout=30)
         print("Status:", r.status_code, "Page:", page)
-print("URL:", r.url)
 
         soup = BeautifulSoup(r.text, "html.parser")
-arts = soup.select("article")
-print("Fant article:", len(arts))
-
+        arts = soup.select("article")
+        print("Fant article:", len(arts))
 
         for art in arts:
-
             try:
                 tekst = art.get_text(" ", strip=True)
-                tittel = art.select_one("h2").get_text(strip=True)
-
+                tittel_tag = art.select_one("h2")
                 pris_tag = art.select_one("[data-testid='price']")
-                if not pris_tag:
+
+                if not tittel_tag or not pris_tag:
                     continue
+
+                tittel = tittel_tag.get_text(strip=True)
 
                 pris_txt = pris_tag.get_text()
                 pris = int(re.sub(r"\D", "", pris_txt))
@@ -91,16 +90,18 @@ print("Fant article:", len(arts))
                 a = art.find("a", href=True)
                 full_lenke = "https://www.finn.no" + a["href"] if a else None
 
-                annonser.append({
-                    "Modell": finn_modell(tittel),
-                    "Årsmodell": år,
-                    "Km": km,
-                    "Pris": pris,
-                    "Drivlinje": finn_drivlinje(tekst),
-                    "Farge": finn_farge(tekst),
-                    "Interiør": finn_interiør(tekst),
-                    "FINN-link": full_lenke
-                })
+                annonser.append(
+                    {
+                        "Modell": finn_modell(tittel),
+                        "Årsmodell": år,
+                        "Km": km,
+                        "Pris": pris,
+                        "Drivlinje": finn_drivlinje(tekst),
+                        "Farge": finn_farge(tekst),
+                        "Interiør": finn_interiør(tekst),
+                        "FINN-link": full_lenke,
+                    }
+                )
             except Exception:
                 continue
 
@@ -108,22 +109,25 @@ print("Fant article:", len(arts))
 
     df = pd.DataFrame(annonser)
 
-    # Robust mot tom scraping
     if df.empty:
-        return pd.DataFrame(columns=[
-            "Modell", "Årsmodell", "Km", "Pris",
-            "Drivlinje", "Farge", "Interiør", "FINN-link"
-        ])
-
-    if "Pris" in df.columns:
-        df = df.dropna(subset=["Pris"])
+        return pd.DataFrame(
+            columns=[
+                "Modell",
+                "Årsmodell",
+                "Km",
+                "Pris",
+                "Drivlinje",
+                "Farge",
+                "Interiør",
+                "FINN-link",
+            ]
+        )
 
     return df
 
 
 def lagre_csv(filename: str = "tesla_finn.csv", max_pages: int = 10) -> pd.DataFrame:
     df = hent_tesla_dataframe(max_pages=max_pages)
-    df.to_csv(filename, index=False)
     print("Antall annonser funnet:", len(df))
-
+    df.to_csv(filename, index=False)
     return df
