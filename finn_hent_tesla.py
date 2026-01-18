@@ -15,7 +15,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-def finn_modell(text):
+
+def finn_modell(text: str) -> str:
     t = text.lower()
     if "model s" in t:
         return "Model S"
@@ -27,7 +28,8 @@ def finn_modell(text):
         return "Model Y"
     return "Ukjent"
 
-def finn_drivlinje(text):
+
+def finn_drivlinje(text: str) -> str:
     t = text.lower()
     if "awd" in t or "firehjul" in t or "dual motor" in t:
         return "AWD"
@@ -35,13 +37,15 @@ def finn_drivlinje(text):
         return "RWD"
     return "Ukjent"
 
-def finn_farge(text):
+
+def finn_farge(text: str) -> str:
     for f in ["svart", "hvit", "kvit", "blå", "rød", "raud", "grå", "sølv"]:
         if f in text.lower():
             return f.capitalize()
     return "Ukjent"
 
-def finn_interiør(text):
+
+def finn_interiør(text: str) -> str:
     t = text.lower()
     if "hvitt interiør" in t or "kvit interiør" in t:
         return "Hvitt"
@@ -50,11 +54,12 @@ def finn_interiør(text):
     return "Ukjent"
 
 
-def hent_tesla_dataframe(max_pages=10, sleep_sec=1):
+def hent_tesla_dataframe(max_pages: int = 10, sleep_sec: int = 1) -> pd.DataFrame:
     annonser = []
 
     for page in range(1, max_pages + 1):
         PARAMS["page"] = page
+
         r = requests.get(URL, params=PARAMS, headers=HEADERS, timeout=20)
         soup = BeautifulSoup(r.text, "html.parser")
 
@@ -63,7 +68,11 @@ def hent_tesla_dataframe(max_pages=10, sleep_sec=1):
                 tekst = art.get_text(" ", strip=True)
                 tittel = art.select_one("h2").get_text(strip=True)
 
-                pris_txt = art.select_one("[data-testid='price']").get_text()
+                pris_tag = art.select_one("[data-testid='price']")
+                if not pris_tag:
+                    continue
+
+                pris_txt = pris_tag.get_text()
                 pris = int(re.sub(r"\D", "", pris_txt))
 
                 km_match = re.search(r"(\d[\d\s]*)\s?km", tekst)
@@ -85,29 +94,27 @@ def hent_tesla_dataframe(max_pages=10, sleep_sec=1):
                     "Interiør": finn_interiør(tekst),
                     "FINN-link": full_lenke
                 })
-            except:
+            except Exception:
                 continue
 
         time.sleep(sleep_sec)
 
     df = pd.DataFrame(annonser)
 
-# Hvis FINN gav 0 annonser (tom scraping), lag tom df med riktige kolonner
-if df.empty:
-    df = pd.DataFrame(columns=[
-        "Modell", "Årsmodell", "Km", "Pris",
-        "Drivlinje", "Farge", "Interiør", "FINN-link"
-    ])
+    # Robust mot tom scraping
+    if df.empty:
+        return pd.DataFrame(columns=[
+            "Modell", "Årsmodell", "Km", "Pris",
+            "Drivlinje", "Farge", "Interiør", "FINN-link"
+        ])
+
+    if "Pris" in df.columns:
+        df = df.dropna(subset=["Pris"])
+
     return df
 
-# Hvis Pris-kolonne mangler av ein eller annan grunn
-if "Pris" in df.columns:
-    df = df.dropna(subset=["Pris"])
 
-return df
-
-
-def lagre_csv(filename="tesla_finn.csv", max_pages=10):
+def lagre_csv(filename: str = "tesla_finn.csv", max_pages: int = 10) -> pd.DataFrame:
     df = hent_tesla_dataframe(max_pages=max_pages)
     df.to_csv(filename, index=False)
     return df
