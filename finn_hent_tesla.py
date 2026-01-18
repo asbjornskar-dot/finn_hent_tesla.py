@@ -66,12 +66,11 @@ def hent_tesla_dataframe(max_pages: int = 10, sleep_sec: int = 1) -> pd.DataFram
         soup = BeautifulSoup(r.text, "html.parser")
         arts = soup.select("article")
         print("Fant article:", len(arts))
-        # FINN gir ofte tom side etter side 1 (innhold lastes via JS).
-# Når vi får 0 articles: stopp her, men behold annonser vi allerede har funnet.
-if page > 1 and len(arts) == 0:
-    print("Stopper: FINN gir ingen <article> på side", page)
-    break
 
+        # STOPP når side 2+ er tom (FINN er JS-basert videre paging)
+        if page > 1 and len(arts) == 0:
+            print("Stopper: FINN gir ingen <article> på side", page)
+            break
 
         for art in arts:
             try:
@@ -115,15 +114,23 @@ if page > 1 and len(arts) == 0:
 
     df = pd.DataFrame(annonser)
 
-if df.empty:
-    print("Ingen annonser samlet.")
-    return pd.DataFrame(columns=[
-        "Modell", "Årsmodell", "Km", "Pris",
-        "Drivlinje", "Farge", "Interiør", "FINN-link"
-    ])
+    # Fix 2: sørg for tom DF med kolonner hvis ingen annonser
+    if df.empty:
+        print("Ingen annonser samlet.")
+        return pd.DataFrame(
+            columns=[
+                "Modell",
+                "Årsmodell",
+                "Km",
+                "Pris",
+                "Drivlinje",
+                "Farge",
+                "Interiør",
+                "FINN-link",
+            ]
+        )
 
-return df
-
+    return df
 
 
 def lagre_csv(filename: str = "tesla_finn.csv", max_pages: int = 10) -> pd.DataFrame:
