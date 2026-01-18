@@ -1,18 +1,51 @@
 import streamlit as st
 import pandas as pd
+import os
+from datetime import datetime
+
+import finn_hent_tesla
 
 st.set_page_config(page_title="Tesla på FINN", layout="wide")
 st.title("🚗 Tesla på FINN – Analyse & prisforslag")
 
-import os
-if os.path.exists("tesla_finn.csv"):
-    df = pd.read_csv("tesla_finn.csv")
+CSV_FILE = "tesla_finn.csv"
+
+# --------------------------
+# LAST DATA (fra csv)
+# --------------------------
+def last_data():
+    if os.path.exists(CSV_FILE):
+        return pd.read_csv(CSV_FILE)
+    return pd.DataFrame()
+
+# --------------------------
+# SIDEBAR: Oppdater-knapp
+# --------------------------
+st.sidebar.header("Data")
+
+if st.sidebar.button("🔄 Oppdater Tesla-data frå FINN"):
+    with st.spinner("Hentar nye Tesla-annonsar frå FINN..."):
+        df_ny = finn_hent_tesla.lagre_csv(CSV_FILE, max_pages=10)
+        st.session_state["df"] = df_ny
+    st.sidebar.success(f"Oppdatert! {len(df_ny)} annonser.")
+    st.sidebar.caption(f"Sist oppdatert: {datetime.now().strftime('%H:%M:%S')}")
+
+# Bruk session-state om den finst
+if "df" in st.session_state:
+    df = st.session_state["df"]
 else:
-    import finn_hent_tesla
-    df = pd.read_csv("tesla_finn.csv")
+    df = last_data()
+
+# Hvis tom (første gong)
+if df.empty:
+    st.warning("Ingen data endå. Trykk 'Oppdater Tesla-data frå FINN' i menyen til venstre.")
+    st.stop()
 
 tab1, tab2 = st.tabs(["📊 Alle Tesla", "💰 Prisforslag"])
 
+# --------------------------
+# FANE 1
+# --------------------------
 with tab1:
     st.sidebar.header("Filtrer")
 
@@ -41,26 +74,31 @@ with tab1:
         (df["Km"].between(*km))
     ].sort_values("Pris")
 
+    st.markdown(f"### Treffer: **{len(filtrert)}**")
     st.dataframe(filtrert, use_container_width=True)
 
+# --------------------------
+# FANE 2 – Prisforslag (STRAM)
+# --------------------------
 with tab2:
-    st.subheader("💰 Foreslå annonsepris (STRAM)")
+    st.subheader("💰 Foreslå annonsepris (STRAM samanlikning)")
 
     m = st.selectbox("Modell", sorted(df["Modell"].unique()))
     d = st.selectbox("Drivlinje", ["AWD", "RWD"])
-    år = st.number_input("Årsmodell", 2013, 2025, 2021)
-    km = st.number_input("Kilometerstand", 0, 500000, 60000)
+    år_inn = st.number_input("Årsmodell", 2013, 2025, 2021)
+    km_inn = st.number_input("Kilometerstand", 0, 500000, 60000)
 
     if st.button("Beregn pris"):
         s = df[
             (df["Modell"] == m) &
             (df["Drivlinje"] == d) &
-            (df["Årsmodell"].between(år - 1, år + 1)) &
-            (df["Km"].between(km - 15000, km + 15000))
+            (df["Årsmodell"].between(år_inn - 1, år_inn + 1)) &
+            (df["Km"].between(km_inn - 15000, km_inn + 15000))
         ]
 
         if len(s) < 3:
-            st.warning("For få samanliknbare bilar.")
+            st.warning("For få samanliknbare bilar. Prøv å justere km/år.")
         else:
             st.success(f"🎯 Anbefalt pris: **{int(s['Pris'].median()):,} kr**")
+            st.caption(f"Basert på {len(s)} bilar")
             st.dataframe(s.sort_values("Pris"), use_container_width=True)
