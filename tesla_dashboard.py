@@ -23,7 +23,7 @@ def last_data():
 # --------------------------
 st.sidebar.header("Data")
 
-if st.sidebar.button("🔄 Oppdater Tesla-data frå FINN"):
+st.sidebar.caption("✅ Data oppdateres automatisk kvar dag via GitHub Actions.")
     with st.spinner("Hentar nye Tesla-annonsar frå FINN..."):
         df_ny = finn_hent_tesla.lagre_csv(CSV_FILE, max_pages=10)
 
