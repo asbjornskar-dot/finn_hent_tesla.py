@@ -91,8 +91,20 @@ def hent_tesla_dataframe(max_pages=10, sleep_sec=1):
         time.sleep(sleep_sec)
 
     df = pd.DataFrame(annonser)
-    df = df.dropna(subset=["Pris"])
+
+# Hvis FINN gav 0 annonser (tom scraping), lag tom df med riktige kolonner
+if df.empty:
+    df = pd.DataFrame(columns=[
+        "Modell", "Årsmodell", "Km", "Pris",
+        "Drivlinje", "Farge", "Interiør", "FINN-link"
+    ])
     return df
+
+# Hvis Pris-kolonne mangler av ein eller annan grunn
+if "Pris" in df.columns:
+    df = df.dropna(subset=["Pris"])
+
+return df
 
 
 def lagre_csv(filename="tesla_finn.csv", max_pages=10):
